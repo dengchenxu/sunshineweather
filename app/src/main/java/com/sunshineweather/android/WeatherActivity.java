@@ -1,5 +1,6 @@
 package com.sunshineweather.android;
 
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.os.Build;
@@ -154,7 +155,8 @@ public class WeatherActivity extends AppCompatActivity {
         sportText.setText("运动建议：" + weather.suggestion.sport.txt);
         carWashText.setText("洗车建议：" + weather.suggestion.cw.txt);
         weatherLayout.setVisibility(View.VISIBLE);
-
+        Intent intent = new Intent(this,AutoUpdateService.class);
+        startService(intent);
     }
 
     public void requestWeather(String weatherId){
