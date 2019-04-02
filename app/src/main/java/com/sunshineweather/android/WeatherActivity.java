@@ -10,6 +10,7 @@ import android.support.v4.widget.DrawerLayout;
 import android.support.v4.widget.SwipeRefreshLayout;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.Button;
@@ -26,19 +27,21 @@ import com.sunshineweather.android.util.HttpUtil;
 import com.sunshineweather.android.util.Utility;
 
 import java.io.IOException;
+import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.Date;
 
 import okhttp3.Call;
 import okhttp3.Callback;
 import okhttp3.Response;
 
-public class WeatherActivity extends AppCompatActivity {
+public class WeatherActivity extends AppCompatActivity implements View.OnClickListener{
 
     private TextView titleCityText;
-    private TextView titleUpdateTimeText;
+    private Button settingButton;
     private TextView nowTemperatureText;
     private TextView nowConditionText;
-    private TextView nowMaxMinTemperatureText;
+    private TextView nowUpdateTimeText;
     private LinearLayout forecastLayout;
     private TextView aqiText;
     private TextView pm25Text;
@@ -53,8 +56,10 @@ public class WeatherActivity extends AppCompatActivity {
     private ImageView bingPicImg;
     public SwipeRefreshLayout swipeRefresh;
     private String mWeatherId;
-    private SimpleDateFormat dateFormat = new SimpleDateFormat("HH:mm");
+    private SimpleDateFormat dateFormat = new SimpleDateFormat("yyyyMMdd HH:mm");
     private String mUpdateTime;
+    private String lastUpdateDate;
+    private String currentDate;
     public DrawerLayout drawerLayout;
     private Button navButton;
 
@@ -68,10 +73,10 @@ public class WeatherActivity extends AppCompatActivity {
         }
         setContentView(R.layout.activity_weather);
         titleCityText = (TextView) findViewById(R.id.title_city_text);
-        titleUpdateTimeText = (TextView) findViewById(R.id.title_update_time_text);
+        settingButton = (Button) findViewById(R.id.setting_button);
         nowTemperatureText = (TextView) findViewById(R.id.now_temperature_text);
         nowConditionText = (TextView) findViewById(R.id.now_condition_text);
-        nowMaxMinTemperatureText = (TextView) findViewById(R.id.now_max_min_temperature_text);
+        nowUpdateTimeText = (TextView) findViewById(R.id.now_update_time);
         forecastLayout = (LinearLayout) findViewById(R.id.forecast_item);
         aqiText = (TextView) findViewById(R.id.aqi_text);
         pm25Text = (TextView) findViewById(R.id.pm2_5_text);
@@ -91,22 +96,40 @@ public class WeatherActivity extends AppCompatActivity {
         SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
         String weatherString = sharedPreferences.getString("weather", null);
         String bingPic = sharedPreferences.getString("bing_pic", null);
-
-        if (bingPic != null){
-            Glide.with(this).load(bingPic).into(bingPicImg);
-        }else {
-            loadBingPic();
+        String switchStatus = sharedPreferences.getString("switch", null);
+        String radioType = sharedPreferences.getString("radio_button", null);
+        int autoUpdateTime = 6;
+        if (radioType != null){
+            autoUpdateTime = Integer.parseInt(radioType);
+        }
+        if (switchStatus != null && switchStatus.equals("true")){
+            Intent intent = new Intent(WeatherActivity.this, AutoUpdateService.class);
+            intent.putExtra("time", autoUpdateTime);
+            startService(intent);
         }
 
         if (weatherString != null){
             Weather weather = Utility.handleWeatherResponse(weatherString);
             mWeatherId = weather.basic.weatherId;
             mUpdateTime = sharedPreferences.getString("updatetime", null);
-            showWeatherInfo(weather);
+                lastUpdateDate = mUpdateTime.split(" ")[0];
+                currentDate = dateFormat.format(System.currentTimeMillis()).split(" ")[0];
+                if (currentDate.compareTo(lastUpdateDate) > 0){
+                    requestWeather(mWeatherId);
+                    loadBingPic();
+                }else {
+                    showWeatherInfo(weather);
+                }
         }else {
             mWeatherId = getIntent().getStringExtra("weather_id");
             weatherLayout.setVisibility(View.INVISIBLE);
             requestWeather(mWeatherId);
+        }
+
+        if (bingPic != null){
+            Glide.with(this).load(bingPic).into(bingPicImg);
+        }else {
+            loadBingPic();
         }
         swipeRefresh.setOnRefreshListener(new SwipeRefreshLayout.OnRefreshListener() {
             @Override
@@ -115,12 +138,8 @@ public class WeatherActivity extends AppCompatActivity {
             }
         });
 
-        navButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                drawerLayout.openDrawer(GravityCompat.START);
-            }
-        });
+        navButton.setOnClickListener(this);
+        settingButton.setOnClickListener(this);
     }
 
     private void showWeatherInfo(Weather weather){
@@ -130,10 +149,9 @@ public class WeatherActivity extends AppCompatActivity {
         String nowCondition = weather.now.coundition;
         String nowMaxMinTemperature = weather.forecastList.get(0).temperature.max + "℃ / " + weather.forecastList.get(0).temperature.min + "℃";
         titleCityText.setText(cityName);
-        titleUpdateTimeText.setText(mUpdateTime);
+        nowUpdateTimeText.setText("上次更新时间：" + mUpdateTime.split(" ")[1]);
         nowTemperatureText.setText(nowTemperature);
         nowConditionText.setText(nowCondition);
-        nowMaxMinTemperatureText.setText(nowMaxMinTemperature);
         forecastLayout.removeAllViews();
         for (Forecast forecast : weather.forecastList){
             View view = LayoutInflater.from(this).inflate(R.layout.forecast_item, forecastLayout, false);
@@ -155,8 +173,7 @@ public class WeatherActivity extends AppCompatActivity {
         sportText.setText("运动建议：" + weather.suggestion.sport.txt);
         carWashText.setText("洗车建议：" + weather.suggestion.cw.txt);
         weatherLayout.setVisibility(View.VISIBLE);
-        Intent intent = new Intent(this,AutoUpdateService.class);
-        startService(intent);
+
     }
 
     public void requestWeather(String weatherId){
@@ -221,5 +238,20 @@ public class WeatherActivity extends AppCompatActivity {
                 });
             }
         });
+    }
+
+    @Override
+    public void onClick(View view) {
+        switch (view.getId()){
+            case R.id.nav_button:
+                drawerLayout.openDrawer(GravityCompat.START);
+                break;
+            case R.id.setting_button:
+                Intent intent = new Intent(WeatherActivity.this, SettingActivity.class);
+                startActivity(intent);
+                break;
+            default:
+                break;
+        }
     }
 }

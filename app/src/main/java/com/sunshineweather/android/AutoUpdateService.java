@@ -8,6 +8,8 @@ import android.content.SharedPreferences;
 import android.os.IBinder;
 import android.os.SystemClock;
 import android.preference.PreferenceManager;
+import android.util.Log;
+import android.widget.Toast;
 
 import com.sunshineweather.android.gson.Weather;
 import com.sunshineweather.android.util.HttpUtil;
@@ -34,7 +36,8 @@ public class AutoUpdateService extends Service {
         updateWeather();
         updateBingPic();
         AlarmManager manager = (AlarmManager) getSystemService(ALARM_SERVICE);
-        int hours = 8*60*60*1000;
+        int hours = intent.getIntExtra("time", 6)*60*1000;
+        Log.d("AutoUpdateService", String.valueOf(intent.getIntExtra("time", 6)));
         long triggerAlTime = SystemClock.elapsedRealtime() + hours;
         Intent intent1 = new Intent(this, AutoUpdateService.class);
         PendingIntent pendingIntent = PendingIntent.getService(this, 0, intent1, 0);
@@ -63,7 +66,7 @@ public class AutoUpdateService extends Service {
                     if (weather1 != null && "ok".equals(weather1.status)){
                         SharedPreferences.Editor editor = PreferenceManager.getDefaultSharedPreferences(AutoUpdateService.this).edit();
                         editor.putString("weather", responseText);
-                        editor.putString("updatetime", new SimpleDateFormat("HH:mm").format(System.currentTimeMillis()));
+                        editor.putString("updatetime", new SimpleDateFormat("yyyy-MM-dd HH:mm").format(System.currentTimeMillis()));
                         editor.apply();
                     }
                 }
@@ -88,5 +91,15 @@ public class AutoUpdateService extends Service {
                 editor.apply();
             }
         });
+    }
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+    }
+
+    @Override
+    public void onCreate() {
+        super.onCreate();
     }
 }
